@@ -117,3 +117,4 @@ def handler(event, context):
     byte_string = fpdf.output(dest='S').encode('latin-1')
     stream = BytesIO(byte_string)
     print('pdf is ready to be merged')
+    print('how are you doing?')
