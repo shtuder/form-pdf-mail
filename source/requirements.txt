@@ -1,0 +1,4 @@
+fpdf
+PyPDF2
+boto3
+transliterate
