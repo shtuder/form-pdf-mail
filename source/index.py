@@ -117,3 +117,87 @@ def handler(event, context):
     byte_string = fpdf.output(dest='S').encode('latin-1')
     stream = BytesIO(byte_string)
     print('pdf is ready to be merged')
+
+
+    """
+    Объединяем шаблон и созданный контент в один PDF.
+    """
+    pdf_template_file_name = 'template.pdf'
+    pdf_template = PdfFileReader(open(pdf_template_file_name, 'rb'))
+    template_page = pdf_template.getPage(1)
+    overlay_pdf = PdfFileReader(stream)
+    template_page.mergePage(overlay_pdf.getPage(0))
+
+    output_pdf = PdfFileWriter()
+    output_pdf.addPage(pdf_template.getPage(0))
+    output_pdf.addPage(template_page)
+    buf = BytesIO()
+    output_pdf.write(buf)
+    print('output pdf is ready')
+
+
+    """
+    Загрузка файла в S3.
+    """
+
+    session = boto3.session.Session(aws_access_key_id='YCAJEizxOoBAkk64DSmSEQbJu',
+              aws_secret_access_key='YCNGZooOD9oCbSc0L74--aKN43MpB8ewwStfD5El',
+              region_name='ru-central1')
+    s3 = session.client(
+        service_name='s3',
+        endpoint_url='https://storage.yandexcloud.net'
+    )
+
+    key = ''.join(random.choice(string.ascii_uppercase + string.ascii_lowercase + string.digits) for _ in range(30))
+    file_name = translit(name, "ru", reversed=True).replace(' ', '_').lower() + '_' + key + '.pdf'
+    s3.put_object(Body=buf.getvalue(), Bucket='manifest-lab-space-pub', Key=file_name)
+    print('pdf is uploaded')
+
+
+    """
+    Отправка письма через Unisender.
+    """
+
+    api_key = '6f3711m8kiqxdd6p4eetzugeky1oydha5f4hy5xe'
+    sender_name = 'MANIFEST LAB'
+    sender_email = 'info@manifest-lab.space'
+    subject = 'Гид "Ролевая модель": Результаты прохождения'
+    list_id = 2
+    lang = 'ru'
+    track_read = 1
+    track_links = 1
+    cc = 'aopichugin@gmail.com'
+    error_checking = 1
+
+    with open('role-model-email') as f:
+        body = f.read()
+
+    link = 'https://storage.yandexcloud.net/manifest-lab-space-pub/' + file_name
+    body2 = body.replace('https://manifest-lab.space/guide', link)
+
+    url = 'https://api.unisender.com/ru/api/sendEmail'
+    myobj = {
+        'format': 'json',
+        'api_key': api_key,
+        'email': email,
+        'sender_name': sender_name,
+        'sender_email': sender_email,
+        'body': body2,
+        'subject': subject,
+        'list_id': list_id,
+        'lang': lang,
+        'track_read': track_read,
+        'track_links': track_links,
+        'error_checking': error_checking,
+        'cc': cc
+    }
+
+    x = requests.post(url, data = myobj)
+    print(x.text)
+    print('the email is sent')
+
+
+    return {
+        'statusCode': 200,
+        'body': 'Success!' + ' ' + link
+    }
